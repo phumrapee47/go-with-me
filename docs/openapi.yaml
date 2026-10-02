@@ -1,0 +1,367 @@
+openapi: 3.0.3
+info:
+  title: GOWITHME Supabase API contract (PostgREST + RPC + Edge)
+  version: 0.1.0
+  description: |
+    Contract as seen by the Flutter client. PostgREST is the wire format; the canonical error envelope
+    (components/schemas/ErrorEnvelope) is produced client-side by ErrorMapper (see docs/design-api.md section 6),
+    except Edge Functions which return it natively. Only the high-value resources are spelled out; plain CRUD
+    tables follow the same pattern (see x-tables). Coordinates: write EWKT 'SRID=4326;POINT(lng lat)' (lng first);
+    RPC responses use *_lat/*_lng fields.
+servers:
+  - url: https://{project}.supabase.co
+    variables: { project: { default: YOUR_PROJECT } }
+security:
+  - anonKey: []
+    userJwt: []
+tags:
+  - { name: trips }
+  - { name: matching }
+  - { name: chat }
+  - { name: safety }
+  - { name: share }
+  - { name: privacy }
+x-tables:
+  note: Same conventions as /rest/v1/trips for profiles, consents, verifications, emergency_contacts, blocks, reports, matches (read-only), trip_shares (read-only), app_config (read-only), org_domains (read-only).
+paths:
+  /rest/v1/trips:
+    get:
+      tags: [trips]
+      summary: My trips (RLS: owner only)
+      parameters:
+        - { name: status, in: query, schema: { type: string, example: "in.(scheduled,in_progress)" } }
+        - { name: order, in: query, schema: { type: string, default: created_at.desc } }
+        - { name: limit, in: query, required: true, schema: { type: integer, maximum: 50, default: 20 } }
+        - { name: created_at, in: query, description: "keyset cursor e.g. lt.2026-09-25T12:00:00Z", schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Trip' } } } } }
+        '401': { $ref: '#/components/responses/PostgrestError' }
+    post:
+      tags: [trips]
+      summary: Create trip (server rules in trips_guard trigger)
+      description: Not idempotent in 0001 (guarded by GWM_ACTIVE_TRIP_LIMIT). Proposed 0002 - accept client id + on_conflict=id.
+      parameters:
+        - { name: Prefer, in: header, schema: { type: string, example: return=representation } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TripCreate' } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Trip' } } } } }
+        '400': { $ref: '#/components/responses/PostgrestError' }   # GWM_DEPART_IN_PAST, GWM_TRIP_TOO_SHORT, GWM_ACTIVE_TRIP_LIMIT, GWM_TRIP_RATE_LIMIT
+        '403': { $ref: '#/components/responses/PostgrestError' }
+    patch:
+      tags: [trips]
+      summary: Change status / edit (idempotent when guarded with status=eq.prev)
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: string, example: "eq.<uuid>" } }
+        - { name: status, in: query, description: "optimistic guard, e.g. eq.scheduled", schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TripPatch' } } }
+      responses:
+        '204': { description: Updated }
+        '400': { $ref: '#/components/responses/PostgrestError' }   # GWM_INVALID_TRIP_TRANSITION, GWM_TRIP_EDIT_LIMIT ...
+        '403': { $ref: '#/components/responses/PostgrestError' }
+  /rest/v1/trip_locations:
+    post:
+      tags: [trips]
+      summary: Push live location (1 row / 5 s / trip, only while in_progress + location consent)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TripLocationCreate' } } }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/PostgrestError' }   # GWM_RATE_LIMITED -> drop, no retry
+        '403': { $ref: '#/components/responses/PostgrestError' }
+  /rest/v1/rpc/find_matches:
+    post:
+      tags: [matching]
+      summary: Candidate trips (blurred, deterministic, limit clamped 1..50). Read-only.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [p_trip_id], properties: { p_trip_id: { type: string, format: uuid }, p_limit: { type: integer, minimum: 1, maximum: 50, default: 20 } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/MatchCandidate' } } } } }
+        '403': { $ref: '#/components/responses/PostgrestError' }   # GWM_TRIP_NOT_FOUND (42501)
+  /rest/v1/rpc/request_match:
+    post:
+      tags: [matching]
+      summary: Send request (race-safe; auto-accepts if the other side asked first)
+      description: |
+        Retry rule: on GWM_ALREADY_REQUESTED / GWM_ALREADY_EXISTS after a retried call, SELECT the match by
+        (requester_trip_id, target_trip_id) and treat it as success.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [p_my_trip, p_target_trip], properties: { p_my_trip: { type: string, format: uuid }, p_target_trip: { type: string, format: uuid } } } } }
+      responses:
+        '200': { description: match id, content: { application/json: { schema: { type: string, format: uuid } } } }
+        '400': { $ref: '#/components/responses/PostgrestError' }   # GWM_NOT_ELIGIBLE, GWM_ALREADY_REQUESTED, GWM_MATCH_LIMIT, GWM_TRIP_UNAVAILABLE
+  /rest/v1/rpc/respond_match:
+    post:
+      tags: [matching]
+      summary: Accept / decline (target only; no reason stored)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_match_id, p_accept]
+              properties:
+                p_match_id: { type: string, format: uuid }
+                p_accept: { type: boolean }
+                p_meet_lng: { type: number }
+                p_meet_lat: { type: number }
+                p_meet_label: { type: string, maxLength: 120 }
+      responses:
+        '200': { description: resulting status, content: { application/json: { schema: { type: string, enum: [accepted, declined] } } } }
+        '400': { $ref: '#/components/responses/PostgrestError' }   # GWM_MATCH_NOT_FOUND (also when already answered -> refetch)
+  /rest/v1/rpc/get_partner_live_location:
+    post:
+      tags: [matching]
+      summary: Partner live location (accepted match + partner trip in_progress). Poll 15-30 s.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [p_match_id], properties: { p_match_id: { type: string, format: uuid } } } } }
+      responses:
+        '200': { description: 0 or 1 rows, content: { application/json: { schema: { type: array, maxItems: 1, items: { type: object, properties: { lat: { type: number }, lng: { type: number }, recorded_at: { type: string, format: date-time } } } } } } }
+  /rest/v1/chat_messages:
+    get:
+      tags: [chat]
+      summary: History (keyset; RLS participant)
+      parameters:
+        - { name: match_id, in: query, required: true, schema: { type: string, example: "eq.<uuid>" } }
+        - { name: order, in: query, schema: { type: string, default: "created_at.desc,id.desc" } }
+        - { name: limit, in: query, required: true, schema: { type: integer, maximum: 50, default: 31 } }
+        - { name: created_at, in: query, description: "cursor lt.<ts>", schema: { type: string } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ChatMessage' } } } } }
+    post:
+      tags: [chat]
+      summary: Send (idempotent via client_msg_id; 409/23505 = already stored = success)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ChatMessageCreate' } } }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/PostgrestError' }   # 23514 body length, GWM_RATE_LIMITED
+        '403': { $ref: '#/components/responses/PostgrestError' }   # RLS: chat closed / not participant / blocked
+        '409': { $ref: '#/components/responses/PostgrestError' }
+  /rest/v1/sos_events:
+    post:
+      tags: [safety]
+      summary: Record SOS (owner). Idempotent once 0002 grants `id` (client-generated) and on_conflict=id.
+      description: Never rate-limited. Call/share-sheet happens BEFORE this request; queue offline and flush.
+      parameters:
+        - { name: on_conflict, in: query, schema: { type: string, enum: [id] } }
+        - { name: Prefer, in: header, schema: { type: string, example: "resolution=ignore-duplicates,return=minimal" } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SosCreate' } } }
+      responses:
+        '201': { description: Stored }
+        '403': { $ref: '#/components/responses/PostgrestError' }
+  /rest/v1/rpc/create_trip_share:
+    post:
+      tags: [share]
+      summary: Create share link. Raw token returned ONCE; never log or persist.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [p_trip_id], properties: { p_trip_id: { type: string, format: uuid }, p_ttl_min: { type: integer } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ShareCreated' } } } } }
+        '400': { $ref: '#/components/responses/PostgrestError' }   # GWM_TRIP_NOT_FOUND, GWM_SHARE_LIMIT
+  /rest/v1/rpc/revoke_trip_share:
+    post:
+      tags: [share]
+      summary: Revoke (idempotent)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [p_share_id], properties: { p_share_id: { type: string, format: uuid } } } } }
+      responses:
+        '200': { description: OK }
+  /rest/v1/rpc/get_shared_trip:
+    post:
+      tags: [share]
+      summary: Public share viewer (anon). Invalid/expired/revoked -> 200 with [] (do NOT distinguish).
+      security: [ { anonKey: [] } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [p_token], properties: { p_token: { type: string, minLength: 32, maxLength: 128 } } } } }
+      responses:
+        '200': { description: 0 or 1 rows, content: { application/json: { schema: { type: array, maxItems: 1, items: { $ref: '#/components/schemas/SharedTrip' } } } } }
+  /functions/v1/share-view:
+    get:
+      tags: [share]
+      summary: (P1, optional Edge Function) Rate-limited viewer; uniform 404; Cache-Control no-store
+      security: [ { anonKey: [] } ]
+      parameters:
+        - { name: t, in: query, required: true, schema: { type: string, minLength: 32, maxLength: 128 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SharedTrip' } } } }
+        '404': { description: Invalid/expired/revoked (single shape), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '429': { description: Rate limited, headers: { Retry-After: { schema: { type: integer } }, X-RateLimit-Limit: { schema: { type: integer } }, X-RateLimit-Remaining: { schema: { type: integer } }, X-RateLimit-Reset: { schema: { type: integer } } }, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /rest/v1/rpc/request_account_deletion:
+    post:
+      tags: [privacy]
+      summary: PDPA deletion (idempotent)
+      responses: { '200': { description: OK } }
+  /rest/v1/rpc/export_my_data:
+    post:
+      tags: [privacy]
+      summary: PDPA export (P1)
+      responses: { '200': { description: JSON document, content: { application/json: { schema: { type: object } } } } }
+components:
+  securitySchemes:
+    anonKey: { type: apiKey, in: header, name: apikey }
+    userJwt: { type: http, scheme: bearer, bearerFormat: JWT }
+  responses:
+    PostgrestError:
+      description: PostgREST wire error; ErrorMapper converts to ErrorEnvelope. Business errors carry GWM_* in `message`.
+      content: { application/json: { schema: { $ref: '#/components/schemas/PostgrestError' } } }
+  schemas:
+    PostgrestError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: P0001, description: "P0001 -> 400, 42501 -> 403, 23505 -> 409, 23514 -> 400, PGRST* ..." }
+        message: { type: string, example: GWM_ACTIVE_TRIP_LIMIT }
+        details: { type: string, nullable: true }
+        hint: { type: string, nullable: true }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: GWM_ACTIVE_TRIP_LIMIT }
+            message: { type: string, description: developer-facing only; never shown to users }
+            details:
+              type: array
+              items: { type: object, properties: { field: { type: string }, reason: { type: string } } }
+            retryable: { type: boolean }
+            request_id: { type: string }
+    Page:
+      type: object
+      description: Domain-level collection envelope built by repositories (not a wire format).
+      properties:
+        items: { type: array, items: {} }
+        next_cursor: { type: string, nullable: true }
+        has_more: { type: boolean }
+    TravelMode: { type: string, enum: [walk, transit, car, taxi] }
+    TripStatus: { type: string, enum: [scheduled, in_progress, completed, cancelled, expired] }
+    MatchStatus: { type: string, enum: [pending, accepted, declined, cancelled] }
+    Trip:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        mode: { $ref: '#/components/schemas/TravelMode' }
+        status: { $ref: '#/components/schemas/TripStatus' }
+        origin_label: { type: string, nullable: true }
+        dest_label: { type: string, nullable: true }
+        route_distance_m: { type: integer }
+        route_duration_s: { type: integer }
+        depart_at: { type: string, format: date-time }
+        started_at: { type: string, format: date-time, nullable: true }
+        ended_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+      description: Geography columns (origin/dest/route) are returned by PostgREST as GeoJSON to the OWNER only.
+    TripCreate:
+      type: object
+      required: [user_id, mode, origin, dest, route, route_distance_m, route_duration_s, depart_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        mode: { $ref: '#/components/schemas/TravelMode' }
+        origin: { type: string, example: "SRID=4326;POINT(100.5345 13.7455)" }
+        origin_label: { type: string }
+        dest: { type: string, example: "SRID=4326;POINT(100.6 13.9)" }
+        dest_label: { type: string }
+        route: { type: string, example: "SRID=4326;LINESTRING(100.5345 13.7455, 100.6 13.9)", description: "<=500 pts, simplified" }
+        route_distance_m: { type: integer, minimum: 1 }
+        route_duration_s: { type: integer, minimum: 0 }
+        depart_at: { type: string, format: date-time }
+    TripPatch:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/TripStatus' }
+        mode: { $ref: '#/components/schemas/TravelMode' }
+        depart_at: { type: string, format: date-time }
+        deleted_at: { type: string, format: date-time }
+    TripLocationCreate:
+      type: object
+      required: [trip_id, user_id, location]
+      properties:
+        trip_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        location: { type: string, example: "SRID=4326;POINT(100.5 13.7)" }
+        accuracy_m: { type: number, minimum: 0 }
+    MatchCandidate:
+      type: object
+      properties:
+        trip_id: { type: string, format: uuid }
+        display_name: { type: string }
+        badges: { type: object }
+        mode: { $ref: '#/components/schemas/TravelMode' }
+        depart_at: { type: string, format: date-time }
+        time_diff_min: { type: integer }
+        overlap_pct: { type: integer }
+        approx_distance_m: { type: integer, description: rounded to 100 m }
+        score: { type: number }
+        approx_origin_lat: { type: number }
+        approx_origin_lng: { type: number }
+        approx_dest_lat: { type: number }
+        approx_dest_lng: { type: number }
+        request_status: { allOf: [ { $ref: '#/components/schemas/MatchStatus' } ], nullable: true }
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        match_id: { type: string, format: uuid }
+        sender_id: { type: string, format: uuid, nullable: true }
+        kind: { type: string, enum: [user, system] }
+        body: { type: string, minLength: 1, maxLength: 1000 }
+        client_msg_id: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+    ChatMessageCreate:
+      type: object
+      required: [match_id, sender_id, body, client_msg_id]
+      properties:
+        match_id: { type: string, format: uuid }
+        sender_id: { type: string, format: uuid }
+        body: { type: string, minLength: 1, maxLength: 1000 }
+        client_msg_id: { type: string, format: uuid, description: generated once per message; reused on resend }
+    SosCreate:
+      type: object
+      required: [id, user_id, source]
+      properties:
+        id: { type: string, format: uuid, description: "client-generated idempotency key (requires migration 0002 grant)" }
+        user_id: { type: string, format: uuid }
+        trip_id: { type: string, format: uuid, nullable: true }
+        source: { type: string, enum: [trip, chat] }
+        location: { type: string, nullable: true, example: "SRID=4326;POINT(100.5 13.7)" }
+        note: { type: string, maxLength: 500 }
+        client_created_at: { type: string, format: date-time }
+    ShareCreated:
+      type: object
+      properties:
+        share_id: { type: string, format: uuid }
+        token: { type: string, description: 64 hex chars; returned once }
+        share_expires_at: { type: string, format: date-time }
+    SharedTrip:
+      type: object
+      description: Public view. No email/phone/chat/origin. Destination blurred; live position only while in_progress.
+      properties:
+        display_name: { type: string }
+        status: { $ref: '#/components/schemas/TripStatus' }
+        mode: { $ref: '#/components/schemas/TravelMode' }
+        depart_at: { type: string, format: date-time }
+        eta_at: { type: string, format: date-time }
+        approx_dest_lat: { type: number }
+        approx_dest_lng: { type: number }
+        last_lat: { type: number, nullable: true }
+        last_lng: { type: number, nullable: true }
+        last_location_at: { type: string, format: date-time, nullable: true }
+        ended_at: { type: string, format: date-time, nullable: true }

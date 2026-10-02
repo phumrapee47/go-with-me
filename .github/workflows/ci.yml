@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  sql-tests:
+    # Applies migrations 0001-0003 + seed on a real Postgres/PostGIS via the Supabase CLI, then runs the SQL test files.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Create config.toml if the repo has none (keeps migrations and seed)
+        run: test -f supabase/config.toml || supabase init
+      - name: Start local Supabase (applies supabase/migrations, runs seed.sql)
+        run: supabase start -x realtime,storage-api,imgproxy,inbucket,studio,edge-runtime,logflare,vector,supavisor
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: RLS and privacy checklist
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/rls_checklist.sql
+      - name: QA round 1 tests (signup validation, deletion, expiry, matching formula, blur, org domain)
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/qa_round1.sql
+      - if: always()
+        run: supabase stop --no-backup

@@ -1,0 +1,75 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Secrets / local config (design-security section 5)
+.env*
+env/*.json
+!env.example.json
+*.jks
+key.properties
+supabase/.env
+
+# local Supabase config
+/env.json
+
+# --- Added before GitHub upload: never commit keys / local tooling ---
+# Local Claude Code config & skills (contains .env with API keys, local settings)
+/.claude/
+# Firebase / signing / certs
+google-services.json
+GoogleService-Info.plist
+*.pem
+*.p12
+*.keystore
+# Supabase CLI local state (linked project refs)
+/supabase/.temp/
+# Any env variant at any depth (belt and braces)
+**/.env
+**/.env.*
+env.json
+# Scratch files from device testing
+ui*.xml
+*_dump.xml
