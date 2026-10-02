@@ -166,3 +166,31 @@ iPhone (ไม่ต้องมี Mac): รันแบบเว็บเซ�
 | ยืนยันจุดรับ | Live Ride | จบทริป | กลับ Home (mascot) |
 |---|---|---|---|
 | <img src="docs/screenshots/13-pickup-confirmed.png" width="170"> | <img src="docs/screenshots/14-live-ride.png" width="170"> | <img src="docs/screenshots/15-trip-completed.png" width="170"> | <img src="docs/screenshots/16-home-after-trip-mascot.png" width="170"> |
+
+### เข้าสู่ระบบ และโทนสี Rider / Driver
+
+| Login | Home (Rider) | Home (Driver, โทนเข้ม + amber) |
+|---|---|---|
+| <img src="docs/screenshots/20-login.png" width="200"> | <img src="docs/screenshots/24-rider-home.png" width="200"> | <img src="docs/screenshots/21-driver-home-dark.png" width="200"> |
+
+### ฝั่งคนขับ (Driver)
+
+| ใกล้ฉัน (ดูครบแล้ว) | ยืนยันตอบรับ | ทริปของฉัน (จับคู่แล้ว) | แจ้งถึงจุดรับ |
+|---|---|---|---|
+| <img src="docs/screenshots/22-driver-nearby-empty.png" width="170"> | <img src="docs/screenshots/23-accept-confirm-dialog.png" width="170"> | <img src="docs/screenshots/30-driver-trips-matched.png" width="170"> | <img src="docs/screenshots/31-arrived-at-pickup-sent.png" width="170"> |
+
+### ฝั่งผู้โดยสาร (Rider)
+
+| ทริปของฉัน (จับคู่แล้ว) | รายละเอียดทริป | รายละเอียดการจับคู่ |
+|---|---|---|
+| <img src="docs/screenshots/25-rider-trips-matched.png" width="200"> | <img src="docs/screenshots/26-rider-trip-detail.png" width="200"> | <img src="docs/screenshots/27-rider-match-detail.png" width="200"> |
+
+### แชท, สรุปทริป และตั้งค่า
+
+| รายการแชท | ห้องแชท | สรุปทริป (สติกเกอร์ขอบคุณ) |
+|---|---|---|
+| <img src="docs/screenshots/28-chat-list.png" width="200"> | <img src="docs/screenshots/29-chat-room.png" width="200"> | <img src="docs/screenshots/32-trip-completed-full.png" width="200"> |
+
+| โปรไฟล์ (เมนูตั้งค่า) | ยืนยันออกจากระบบ |
+|---|---|
+| <img src="docs/screenshots/33-profile-settings.png" width="200"> | <img src="docs/screenshots/34-logout-confirm.png" width="200"> |
