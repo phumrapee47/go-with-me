@@ -17,6 +17,7 @@ class FakeChatRepository implements ChatRepository {
   AppFailure? sendFailure;
   final messages = <ChatMessage>[];
   final sent = <(String, String, String)>[]; // match, body, clientMsgId
+  final sentKinds = <String>[]; // chat_messages.kind per send, parallel to [sent]
   int sendCalls = 0;
   final _incoming = StreamController<ChatMessage>.broadcast();
 
@@ -47,9 +48,10 @@ class FakeChatRepository implements ChatRepository {
   }
 
   @override
-  Future<Result<ChatMessage>> send(String matchId, String body, String clientMsgId) async {
+  Future<Result<ChatMessage>> send(String matchId, String body, String clientMsgId, {String kind = 'user'}) async {
     sendCalls++;
     sent.add((matchId, body, clientMsgId));
+    sentKinds.add(kind);
     if (sendFailure != null) return Err(sendFailure!);
     // Idempotent on client id, like the DB unique index.
     final existing = messages.where((m) => m.clientMsgId == clientMsgId).firstOrNull;

@@ -6,7 +6,8 @@
 enum Gender {
   female('female', 'หญิง'),
   male('male', 'ชาย'),
-  unspecified('unspecified', 'ไม่ระบุ');
+  // DB check profiles_gender_chk allows only female|male|other (0012), so "ไม่ระบุ" is stored as 'other'.
+  unspecified('other', 'ไม่ระบุ');
 
   const Gender(this.db, this.label);
   final String db;

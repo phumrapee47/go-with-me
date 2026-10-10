@@ -557,6 +557,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(f.chat.sent, hasLength(1));
       expect(f.chat.sent.single.$1, 'm1');
+      expect(f.chat.sentKinds.single, 'driver_arrived', reason: 'the push trigger keys off kind (US-42 AC5)');
       expect(f.chat.sent.single.$2, 'คนขับมารอที่จุดรับแล้วนะ', reason: 'exactly the fixed sentence, no coordinates, no destination');
       expect(find.text(R6.arrivedAtPickupSent), findsOneWidget);
       expect(find.textContaining('ส่งซ้ำได้ใน'), findsOneWidget);

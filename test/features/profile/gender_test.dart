@@ -9,6 +9,14 @@ void main() {
       }
     });
 
+    test('every value the client can send satisfies the DB check profiles_gender_chk (female|male|other)', () {
+      // supabase/migrations/0012_vibe_filters.sql: gender in ('female','male','other'). A mismatch makes the update
+      // fail on the server (it did for "ไม่ระบุ" while it was sent as 'unspecified').
+      for (final g in Gender.values) {
+        expect(const {'female', 'male', 'other'}, contains(g.db), reason: '${g.name} would be rejected by the DB');
+      }
+    });
+
     test('fromDb returns null for unknown/missing values (never guesses)', () {
       expect(Gender.fromDb(null), isNull);
       expect(Gender.fromDb('nonsense'), isNull);
