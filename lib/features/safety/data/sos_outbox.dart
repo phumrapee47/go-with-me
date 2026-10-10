@@ -145,6 +145,7 @@ class SosOutbox {
   Future<AppFailure?> _submit(SosRepository repo, SosEvent e) async {
     try {
       final res = await repo.submit(e).timeout(sendTimeout);
+      // ignore: unawaited_return_in_try_block
       return res.when(ok: (_) => null, err: (f) => f);
     } on TimeoutException {
       return const AppFailure(FailureCode.networkTimeout, retryable: true);

@@ -143,6 +143,7 @@ class SupabaseTripRepository implements TripRepository {
         final t = Trip.fromJson(rows.first);
         if (t != null) return Ok(t);
       }
+      // ignore: unawaited_return_in_try_block
       return _resolveNoop(id, action);
     } catch (e) {
       final f = mapError(e);

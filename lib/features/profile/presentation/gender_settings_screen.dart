@@ -84,7 +84,9 @@ class _GenderSettingsScreenState extends ConsumerState<GenderSettingsScreen> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(g.label),
                 value: g,
+                // ignore: deprecated_member_use
                 groupValue: current,
+                // ignore: deprecated_member_use
                 onChanged: _saving ? null : (v) => v == null ? null : _save(v),
               ),
             const SizedBox(height: AppSpacing.xl),
