@@ -36,7 +36,9 @@ class ThemeSettingsScreen extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               title: Text(_labels[m]!),
               value: m,
+              // ignore: deprecated_member_use
               groupValue: current,
+              // ignore: deprecated_member_use
               onChanged: (v) {
                 if (v != null) ref.read(themeSettingsProvider.notifier).setMode(v);
               },

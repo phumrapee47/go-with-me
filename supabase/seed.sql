@@ -57,6 +57,9 @@ values ('10000000-0000-4000-8000-00000000000a', 'แม่ของ Alice', '+66
 on conflict do nothing;
 
 -- Trips (origin/dest are lng,lat). Straight 2-point routes are enough for overlap tests.
+-- The car trip below is a legacy-style row (mode = car, role null). Since 0006/0008 trg_trips_role_guard rejects such an
+-- INSERT (GWM_ROLE_REQUIRED), so the guard is switched off for this one statement only; the seed runs as a superuser.
+alter table public.trips disable trigger trg_trips_role_guard;
 insert into public.trips (id, user_id, mode, origin, origin_label, dest, dest_label, route, route_distance_m, route_duration_s, depart_at)
 select v.id, v.uid, v.mode::public.travel_mode,
        ST_SetSRID(ST_MakePoint(v.olng, v.olat), 4326)::geography, v.olabel,
@@ -71,6 +74,7 @@ select v.id, v.uid, v.mode::public.travel_mode,
     ('20000000-0000-4000-8000-00000000000e'::uuid, '10000000-0000-4000-8000-00000000000e'::uuid, 'walk', 100.5315, 13.7455, 'สามย่าน',   100.5438, 13.7788, 'อารีย์', 3800, 2900, interval '80 minutes')
   ) as v(id, uid, mode, olng, olat, olabel, dlng, dlat, dlabel, dist, dur, dep)
 on conflict (id) do nothing;
+alter table public.trips enable trigger trg_trips_role_guard;
 
 -- One pending request alice -> bob so the inbox has data (bucketed values like request_match writes).
 insert into public.matches (id, requester_trip_id, target_trip_id, requester_id, target_id, score, overlap_pct, origin_distance_m, dest_distance_m, time_diff_min)

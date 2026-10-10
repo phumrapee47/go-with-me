@@ -43,6 +43,16 @@ Future<Fakes> _open(WidgetTester tester, Fakes f, {Size size = const Size(800, 2
   return f;
 }
 
+/// The selectors (time chip / role / drop-off / create button) live in a bottom sheet opened by the card's primary
+/// button since the card was made compact; open it once if it is not already open.
+Future<void> _ensureSheet(WidgetTester tester) async {
+  if (find.byKey(const Key('quick-cta')).evaluate().isNotEmpty) return;
+  final primary = find.byKey(const Key('quick-primary-cta'));
+  if (primary.evaluate().isEmpty) return;
+  await tester.tap(primary);
+  await tester.pumpAndSettle();
+}
+
 Trip _carTripTo(LatLng dest, {TravelMode mode = TravelMode.car}) => Trip(
       id: 't',
       mode: mode,
@@ -266,6 +276,7 @@ void main() {
       await _open(tester, f);
       expect(find.text(R6C.quickTitle), findsOneWidget);
       expect(find.text(R6C.quickRoute('ที่ทำงาน', 'บ้าน')), findsOneWidget);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       final d = f.trips.created.single;
@@ -286,6 +297,7 @@ void main() {
       final second = opts[1];
       await tester.tap(find.byKey(Key('time-chip-${second.hm}')));
       await tester.pump();
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       final at = f.trips.created.single.departAt;
@@ -300,8 +312,10 @@ void main() {
         ..roles.hasVehicle = true
         ..vehicles.vehicle = _yaris;
       await _open(tester, f);
+      await _ensureSheet(tester);
       expect(find.byKey(const Key('quick-dropoff')), findsOneWidget);
       expect(find.text(R6C.dropoffRow('2.0 กม.')), findsOneWidget);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       final d = f.trips.created.single;
@@ -316,12 +330,14 @@ void main() {
         ..roles.active = ActiveRole.driver
         ..vehicles.vehicle = _yaris;
       await _open(tester, f);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-dropoff-adjust')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('dropoff-chip-3000')));
       await tester.pumpAndSettle();
       await tester.tap(find.text(R6C.dropoffDone));
       await tester.pumpAndSettle();
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(f.trips.created.single.maxDropoffM, 3000);
@@ -336,8 +352,10 @@ void main() {
       await _open(tester, f);
       await tester.tap(find.text(R6C.roleDriver));
       await tester.pumpAndSettle();
+      await _ensureSheet(tester);
       expect(find.byKey(const Key('quick-register-hint')), findsOneWidget);
       expect(find.text(R6C.driverNeedsRegister), findsOneWidget);
+      await _ensureSheet(tester);
       expect(find.byKey(const Key('quick-register')), findsOneWidget);
       expect(f.roles.switchCalls, isEmpty, reason: 'no server switch for an unregistered account');
       expect(find.byKey(const Key('quick-dropoff')), findsNothing);
@@ -350,6 +368,7 @@ void main() {
         ..roles.active = ActiveRole.driver
         ..vehicles.vehicle = null;
       await _open(tester, f);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(f.trips.created, isEmpty);
@@ -365,6 +384,7 @@ void main() {
       await tester.tap(find.text(R6C.roleDriver));
       await tester.pumpAndSettle();
       expect(f.roles.switchCalls, [ActiveRole.driver]);
+      await _ensureSheet(tester);
       expect(find.byKey(const Key('quick-dropoff')), findsOneWidget);
     });
 
@@ -373,6 +393,7 @@ void main() {
       final f = Fakes()..presets.data['u1'] = _seed();
       await _open(tester, f);
       f.trips.active = sampleTrip(); // created elsewhere after the card was drawn
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(f.trips.created, isEmpty);
@@ -384,6 +405,7 @@ void main() {
       final f = Fakes()..presets.data['u1'] = _seed();
       f.trips.createFailure = const AppFailure('GWM_ACTIVE_TRIP_LIMIT');
       await _open(tester, f);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(find.text('คุณมีทริปที่ยังใช้งานอยู่แล้ว จบหรือยกเลิกทริปเดิมก่อน'), findsOneWidget);
@@ -394,6 +416,7 @@ void main() {
       final f = Fakes()..presets.data['u1'] = _seed();
       f.trips.createFailure = const AppFailure('GWM_DEPART_IN_PAST');
       await _open(tester, f);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('quick-error')), findsOneWidget);
@@ -411,10 +434,12 @@ void main() {
       final f = Fakes()..presets.data['u1'] = _seed();
       f.trips.createFailure = const AppFailure(FailureCode.networkOffline, retryable: true);
       await _open(tester, f);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(find.text(R6C.quickNetworkError), findsOneWidget);
       f.trips.createFailure = null;
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(f.trips.created.length, 1);
@@ -424,6 +449,7 @@ void main() {
       final f = Fakes()..presets.data['u1'] = _seed();
       f.routing.failure = const AppFailure(FailureCode.routeNotFound);
       await _open(tester, f);
+      await _ensureSheet(tester);
       await tester.tap(find.byKey(const Key('quick-cta')));
       await tester.pumpAndSettle();
       expect(f.trips.created, isEmpty);
@@ -449,6 +475,7 @@ void main() {
           ..vehicles.vehicle = _yaris;
         await _open(tester, f, size: const Size(390, 844));
         expect(tester.takeException(), isNull);
+        await _ensureSheet(tester);
         expect(find.byKey(const Key('quick-cta')), findsOneWidget);
       });
     }

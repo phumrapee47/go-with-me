@@ -18,6 +18,12 @@ void main() {
       expect(await s.currentPermission(), PushPermissionStatus.unsupported);
     });
 
+    test('initialTap() (cold-start tap, US-42 AC7) fails soft to null', () async {
+      final s = FirebasePushService();
+      expect(s, isA<InitialTapSource>());
+      expect(await s.initialTap(), isNull);
+    });
+
     test('getToken() fails soft to null', () async {
       final s = FirebasePushService();
       expect(await s.getToken(), isNull);

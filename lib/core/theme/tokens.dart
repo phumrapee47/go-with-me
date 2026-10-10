@@ -64,7 +64,7 @@ abstract final class AppShape {
 
   /// Top-only rounding for bottom sheets.
   static SmoothRectangleBorder sheet({BorderSide side = BorderSide.none}) => SmoothRectangleBorder(
-        borderRadius: SmoothBorderRadius.only(
+        borderRadius: const SmoothBorderRadius.only(
           topLeft: SmoothRadius(cornerRadius: AppRadius.sheet, cornerSmoothing: _smoothing),
           topRight: SmoothRadius(cornerRadius: AppRadius.sheet, cornerSmoothing: _smoothing),
         ),

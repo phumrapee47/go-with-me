@@ -355,7 +355,7 @@ class _UnifiedRideState extends ConsumerState<UnifiedRideScreen> with SingleTick
     }
     setState(() => _pickupSending = true);
     // Same channel as the chat (no new RPC): a ready-made sentence, no coordinates, no destination.
-    final res = await ref.read(chatRepositoryProvider).send(m.id, R6.arrivedAtPickupMessage, _uuid.v4());
+    final res = await ref.read(chatRepositoryProvider).send(m.id, R6.arrivedAtPickupMessage, _uuid.v4(), kind: 'driver_arrived');
     if (!mounted) return;
     switch (res) {
       case Ok():

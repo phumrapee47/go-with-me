@@ -147,7 +147,7 @@ class DemoChatRepository implements ChatRepository {
   }
 
   @override
-  Future<Result<ChatMessage>> send(String matchId, String body, String clientMsgId) async {
+  Future<Result<ChatMessage>> send(String matchId, String body, String clientMsgId, {String kind = 'user'}) async {
     await _wait();
     final existing = _messages.where((m) => m.clientMsgId == clientMsgId).firstOrNull;
     if (existing != null) return Ok(existing);

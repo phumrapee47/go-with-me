@@ -100,7 +100,7 @@ class SupabaseChatRepository implements ChatRepository {
   }
 
   @override
-  Future<Result<ChatMessage>> send(String matchId, String body, String clientMsgId) async {
+  Future<Result<ChatMessage>> send(String matchId, String body, String clientMsgId, {String kind = 'user'}) async {
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return const Err(AppFailure('GWM_UNAUTHENTICATED'));
     try {
@@ -111,6 +111,7 @@ class SupabaseChatRepository implements ChatRepository {
           'sender_id': uid,
           'body': body,
           'client_msg_id': clientMsgId,
+          if (kind != 'user') 'kind': kind,
         }),
         sleep: sleep,
       );

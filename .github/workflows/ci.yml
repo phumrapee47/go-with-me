@@ -11,7 +11,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.41.4  # the version the app is developed and tested with; 'stable' moved on and its
+          channel: stable          # newer ListTile debug assertion + analyzer lints broke the suite without any code change
           cache: true
       - run: flutter pub get
       - run: flutter analyze

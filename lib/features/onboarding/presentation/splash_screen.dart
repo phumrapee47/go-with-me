@@ -25,6 +25,9 @@ class _SplashScreenState extends State<SplashScreen> {
       ..initialize().then((_) {
         if (mounted) setState(() {});
         _controller.play();
+      }).catchError((Object _) {
+        // The intro video is decoration: a platform without video support (or a widget test) must not surface an
+        // unhandled async error; the splash simply stays on its static background until it times out.
       });
   }
 

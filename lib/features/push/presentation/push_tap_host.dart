@@ -12,6 +12,7 @@ import 'notification_tap_handler.dart';
 import 'push_copy.dart';
 import 'push_permission_sheet.dart';
 import 'push_providers.dart';
+import 'push_service.dart' show InitialTapSource;
 
 /// Sits above the whole navigator (same slot as `MatchAlertHost`), so a push
 /// tap is handled from ANY screen (US-42, G-1/G-3):
@@ -48,6 +49,14 @@ class _PushTapHostState extends ConsumerState<PushTapHost> {
     _fgSub = service.onForegroundMessage.listen((m) {
       if (mounted) setState(() => _banner = m);
     });
+    if (service is InitialTapSource) {
+      // Cold start: the tap that opened the app never reaches onMessageTap. Run after the first frame so the
+      // router exists; an unauthenticated user is redirected to login by the router as for any deep link.
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final m = await (service as InitialTapSource).initialTap();
+        if (m != null && mounted) handlePushTap(ref, widget.router, m);
+      });
+    }
   }
 
   @override
