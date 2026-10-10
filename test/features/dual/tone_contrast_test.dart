@@ -76,6 +76,9 @@ void main() {
     pair('white ring on the surface behind the red SOS', white, driver.surface, 3);
     pair('white ring on bg behind the red SOS', white, driver.bg, 3);
     pair('navy route casing on the light map', driver.routeCasing, const Color(0xFFE9EEF3), 3);
+    // US-46 AC5: on a dark map the casing must be LIGHT, not near-black.
+    pair('light route casing on the dark map (driver)', ToneColors.driverDark.routeCasing, ToneColors.driverDark.bg, 3);
+    pair('light route casing on the dark map (rider)', ToneColors.riderDark.routeCasing, ToneColors.riderDark.bg, 3);
     test('SOS red is identical in both tones (never amber, never hidden)', () {
       expect(driver.danger, rider.danger);
     });

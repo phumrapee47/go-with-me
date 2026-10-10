@@ -136,7 +136,7 @@ class _AppMapState extends ConsumerState<AppMap> {
               ),
             if (widget.route.length >= 2)
               PolylineLayer(polylines: [
-                // Route colour follows the role of the trip (blue = Rider, amber + navy casing = Driver).
+                // Route colour follows the role of the trip (blue = Rider, amber + navy casing = Driver on a light map; light casing on a dark map).
                 () {
                   final rt = widget.routeTone == null ? context.tone : ToneColors.of(widget.routeTone!);
                   return Polyline(

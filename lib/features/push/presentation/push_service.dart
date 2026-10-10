@@ -52,7 +52,13 @@ DevicePlatform? currentDevicePlatform() {
   }
 }
 
-class FirebasePushService implements PushService {
+/// Optional capability: the notification that LAUNCHED the app from the terminated state. Firebase does not
+/// replay it on [PushService.onMessageTap], so the tap host asks for it once after it starts listening (US-42 AC7).
+abstract class InitialTapSource {
+  Future<PushMessage?> initialTap();
+}
+
+class FirebasePushService implements PushService, InitialTapSource {
   FirebasePushService({String? webVapidKey}) : _webVapidKey = webVapidKey;
   final String? _webVapidKey;
 
@@ -94,6 +100,18 @@ class FirebasePushService implements PushService {
       _available = false;
     }
     return _available;
+  }
+
+  @override
+  Future<PushMessage?> initialTap() async {
+    if (!await _ensureInit()) return null;
+    try {
+      final m = await FirebaseMessaging.instance.getInitialMessage();
+      return m == null ? null : PushMessage.fromData(m.data);
+    } catch (_) {
+      Log.d('Push: getInitialMessage failed');
+      return null;
+    }
   }
 
   @override

@@ -259,7 +259,8 @@ class ToneColors extends ThemeExtension<ToneColors> {
     snackbarBg: Color(0xFFEAF0FA),
     snackbarText: Color(0xFF05101F),
     routeColor: Color(0xFFF0B75B),
-    routeCasing: Color(0xFF05101F),
+    // US-46 AC: light casing keeps the amber route readable on a dark map (a near-black casing sinks into it).
+    routeCasing: Color(0xFFEDF1F7),
     routeWidth: 6,
     dialogBg: Color(0xFF142B4A),
   );

@@ -248,9 +248,14 @@ update public.trips set mood_set_at = now() - interval '25 hours' where id = gwm
 select gwm_test.as_user(gwm_test.uid(11));
 select gwm_test.chk('D2 find_matches hides a stale (>24h) mood_text',
   (select mood_text is null from public.find_matches(gwm_test.tid(11)) where trip_id = gwm_test.tid(12)));
-select gwm_test.chk('D3 find_matches still returns vibe_tags for the same stale-mood candidate (no independent expiry)',
+select gwm_test.chk('D3 find_matches does not filter tags by age itself; expiry is done by purge_stale_vibe_tags() (0017, D5)',
   (select vibe_tags = array['#คุยเก่ง','#ฟังเพลงสากล'] from public.find_matches(gwm_test.tid(11)) where trip_id = gwm_test.tid(12)));
 select gwm_test.reset();
+
+-- D5 (0017, US-44 AC5): vibe tags expire 24h after they were set, independent of mood_text.
+update public.trips set vibe_set_at = now() - interval '25 hours' where id = gwm_test.tid(12);
+select gwm_test.chk('D5 purge_stale_vibe_tags() clears tags older than 24h even when mood is absent/stale',
+  public.purge_stale_vibe_tags() >= 1 and (select vibe_tags is null and vibe_set_at is null from public.trips where id = gwm_test.tid(12)));
 
 -- D4: privacy regression - no user id column exists on find_matches' output, and the car Rider's destination stays
 --     blurred to null for the OTHER party (the Driver here), unchanged by this migration.
